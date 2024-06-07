@@ -18,8 +18,8 @@
 | `output` | `[1:0]`  | `io_master_awburst` | `input`  | `[1:0]`  | `io_slave_awburst` |
 | `input`  |          | `io_master_wready`  | `output` |          | `io_slave_wready`  |
 | `output` |          | `io_master_wvalid`  | `input`  |          | `io_slave_wvalid`  |
-| `output` | `[63:0]` | `io_master_wdata`   | `input`  | `[63:0]` | `io_slave_wdata`   |
-| `output` | `[7:0]`  | `io_master_wstrb`   | `input`  | `[7:0]`  | `io_slave_wstrb`   |
+| `output` | `[31:0]` | `io_master_wdata`   | `input`  | `[31:0]` | `io_slave_wdata`   |
+| `output` | `[3:0]`  | `io_master_wstrb`   | `input`  | `[3:0]`  | `io_slave_wstrb`   |
 | `output` |          | `io_master_wlast`   | `input`  |          | `io_slave_wlast`   |
 | `output` |          | `io_master_bready`  | `input`  |          | `io_slave_bready`  |
 | `input`  |          | `io_master_bvalid`  | `output` |          | `io_slave_bvalid`  |
@@ -35,6 +35,6 @@
 | `output` |          | `io_master_rready`  | `input`  |          | `io_slave_rready`  |
 | `input`  |          | `io_master_rvalid`  | `output` |          | `io_slave_rvalid`  |
 | `input`  | `[1:0]`  | `io_master_rresp`   | `output` | `[1:0]`  | `io_slave_rresp`   |
-| `input`  | `[63:0]` | `io_master_rdata`   | `output` | `[63:0]` | `io_slave_rdata`   |
+| `input`  | `[31:0]` | `io_master_rdata`   | `output` | `[31:0]` | `io_slave_rdata`   |
 | `input`  |          | `io_master_rlast`   | `output` |          | `io_slave_rlast`   |
 | `input`  | `[3:0]`  | `io_master_rid`     | `output` | `[3:0]`  | `io_slave_rid`     |
