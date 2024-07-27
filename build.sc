@@ -5,7 +5,7 @@ import $file.`rocket-chip`.cde.common
 import $file.`rocket-chip`.hardfloat.build
 
 val chiselVersion = "7.0.0-M1"
-val defaultScalaVersion = "2.13.10"
+val defaultScalaVersion = "2.13.11"
 
 trait HasChisel extends SbtModule {
   def chiselModule: Option[ScalaModule] = None
