@@ -9,6 +9,7 @@ $(V_FILE_FINAL): $(SCALA_FILES)
 	sed -i '/firrtl_black_box_resource_files.f/, $$d' $@
 
 verilog: $(V_FILE_FINAL)
+	sed -i 's/ysyx_00000000/ypc/g' build/ysyxSoCFull.v
 
 clean:
 	-rm -rf build/
