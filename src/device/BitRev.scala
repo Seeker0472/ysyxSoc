@@ -14,7 +14,7 @@ class bitrevChisel extends RawModule { // we do not need clock and reset
     val data = Reg(UInt(8.W))
     val cnt  = Reg(UInt(3.W))
     val out   = Reg(Bool())
-    io.miso := 0.U
+    io.miso := 1.U
     when((!io.ss).asBool) {
       when(!out) {
         data := Cat(data(6, 0), io.mosi)
