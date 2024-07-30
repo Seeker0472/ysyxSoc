@@ -58,17 +58,20 @@ class APBSPI(address: Seq[AddressSet])(implicit p: Parameters)
     val s_idle :: s_common :: s_w_ss :: s_w_addr :: s_w_con :: s_wait_ready :: s_valid :: s_reset :: s_read_data :: Nil =
       Enum(9)
     val state = RegInit(s_idle)
-    val is_spi = in.paddr === BitPat("b0011????????????????????????????")
+    //是否进入xip模式
+    val is_xip = in.paddr === BitPat("b0011????????????????????????????")
     //TODO:正常模式读取flash会出错
     val is_cancel = in.paddr ===BitPat("b00010000000000000001000000011000")&&in.pwdata(0,0)===0.U(1.W)&&in.pwrite
+    //状态机
     state := MuxLookup(state, s_common)(
       List(
-        s_idle ->Mux(in.psel,Mux(is_spi,s_w_ss,s_common),s_idle),
+        s_idle ->Mux(in.psel,Mux(is_xip,s_w_ss,s_common),s_idle),
         s_common -> Mux(is_cancel, s_idle, s_common),
         s_w_ss -> Mux(mspi.io.in.pready, s_w_addr, s_w_ss),
         s_w_addr -> Mux(mspi.io.in.pready, s_w_con, s_w_addr),
         s_w_con -> Mux(mspi.io.in.pready, s_wait_ready, s_w_con),
-        s_wait_ready -> Mux(mspi.io.in.prdata(8,8)===0.U&&mspi.io.in.pready, s_read_data, s_wait_ready),//应该是查询中断/控制寄存器中
+        // s_wait_ready -> Mux(mspi.io.in.prdata(8,8)===0.U&&mspi.io.in.pready, s_read_data, s_wait_ready),//应该是查询中断/控制寄存器中
+        s_wait_ready -> Mux(mspi.io.spi_irq_out, s_read_data, s_wait_ready),//应该是查询中断/控制寄存器中
         s_read_data -> Mux(mspi.io.in.pready, s_reset, s_read_data),
         s_reset -> Mux(mspi.io.in.pready, s_valid, s_reset),
         s_valid -> Mux(in.pready, s_idle, s_valid)//in的ready信号(axi向spi发送的信号？)
@@ -92,12 +95,43 @@ class APBSPI(address: Seq[AddressSet])(implicit p: Parameters)
       List(
         s_w_ss -> 1.U(32.W),
         s_w_addr -> Cat(0x03.U(8.W),in.paddr(23,0)),//03是指读操作
-        s_w_con -> 0x540.U(32.W),
+        s_w_con -> 0x1540.U(32.W),
         s_reset -> 0.U(32.W)
       )
     )
+    //当前是否在xip模式
     val xip_mode = state =/= s_idle && state=/=s_common
-    // //测试能不能用Wire来批量连接信号
+
+
+    mspi.io.clock := clock
+    mspi.io.reset := reset
+
+    mspi.io.in.psel := Mux(xip_mode,true.B,Mux(state===s_common,in.psel,false.B))
+    mspi.io.in.penable := Mux(xip_mode,true.B,Mux(state===s_common,in.penable,false.B))
+    mspi.io.in.pwrite := Mux(xip_mode,state===s_w_addr||state===s_w_con||state===s_w_ss||state===s_reset,in.pwrite)//WTF
+
+    mspi.io.in.paddr := Mux(xip_mode,xip_addr,in.paddr)
+    mspi.io.in.pprot := Mux(xip_mode,1.U,in.pprot)
+    mspi.io.in.pwdata := Mux(xip_mode,xip_w_data,in.pwdata)
+    mspi.io.in.pstrb := Mux(xip_mode,0xF.U,in.pstrb)
+
+    in.pready := Mux(xip_mode,state===s_valid,mspi.io.in.pready)
+    val data_prev = Reg(UInt(32.W))//TODO:先读出来再翻转
+    // data_prev:=mspi.io.in.prdata
+    when(state===s_read_data){
+    data_prev:=Cat(mspi.io.in.prdata(7,0),mspi.io.in.prdata(15,8),mspi.io.in.prdata(23,16),mspi.io.in.prdata(31,24))
+    }
+    in.prdata := data_prev//TODO
+    in.pslverr := mspi.io.in.pslverr//TODO
+    
+
+    spi_bundle <> mspi.io.spi
+  }
+}
+//101 0100 0000
+
+    
+    // //测试能不能用Wire来批量连接信号--显然不行
     // val xip_sig = Wire((new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32))))
     // xip_sig.pwrite := state===state===s_w_addr|s_w_con|s_w_ss
     // xip_sig.paddr := xip_addr
@@ -127,29 +161,3 @@ class APBSPI(address: Seq[AddressSet])(implicit p: Parameters)
   // )
     // mspi.io.in <> in
     // mspi.io.in <> selectedGroup
-
-    mspi.io.clock := clock
-    mspi.io.reset := reset
-
-    mspi.io.in.psel := Mux(xip_mode,true.B,Mux(state===s_common,in.psel,false.B))
-    mspi.io.in.penable := Mux(xip_mode,true.B,Mux(state===s_common,in.penable,false.B))
-    mspi.io.in.pwrite := Mux(xip_mode,state===s_w_addr||state===s_w_con||state===s_w_ss||state===s_reset,in.pwrite)//WTF
-
-    mspi.io.in.paddr := Mux(xip_mode,xip_addr,in.paddr)
-    mspi.io.in.pprot := Mux(xip_mode,1.U,in.pprot)
-    mspi.io.in.pwdata := Mux(xip_mode,xip_w_data,in.pwdata)
-    mspi.io.in.pstrb := Mux(xip_mode,0xF.U,in.pstrb)
-
-    in.pready := Mux(xip_mode,state===s_valid,mspi.io.in.pready)
-    val data_prev = Reg(UInt(32.W))//TODO:先读出来再翻转
-    // data_prev:=mspi.io.in.prdata
-    when(state===s_read_data){
-    data_prev:=Cat(mspi.io.in.prdata(7,0),mspi.io.in.prdata(15,8),mspi.io.in.prdata(23,16),mspi.io.in.prdata(31,24))
-    }
-    in.prdata := data_prev//TODO
-    in.pslverr := mspi.io.in.pslverr//TODO
-    
-
-    spi_bundle <> mspi.io.spi
-  }
-}
