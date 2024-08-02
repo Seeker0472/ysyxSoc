@@ -32,11 +32,11 @@ module EF_PSRAM_CTRL_wb (
     input   wire        we_i,
 
     // External Interface to Quad I/O
-    output  wire            sck,
-    output  wire            ce_n,
+    output  wire            sck,//TODO
+    output  wire            ce_n,//TODO
     input   wire [3:0]      din,
-    output  wire [3:0]      dout,
-    output  wire [3:0]      douten
+    output  wire [3:0]      dout,//TODO
+    output  wire [3:0]      douten//TODO
 );
 
     localparam  ST_IDLE = 1'b0,
@@ -75,6 +75,28 @@ module EF_PSRAM_CTRL_wb (
             state <= ST_IDLE;
         else
             state <= nstate;
+
+
+//my
+    reg w_qpi_enable;//在~rst_i下降沿激活并重置
+    reg w_qpi_send;//在~rst_i下降沿激活并重置
+    reg [3:0] w_qpi_counter;//在~rst_i下降沿激活并重置
+    // reg qpi_sck;
+
+    always @ (posedge rst_i or posedge clk_i) begin
+        if (rst_i&&!w_qpi_send) begin
+            w_qpi_counter <= 4'b0;
+            w_qpi_enable  <= 1'b1;
+            w_qpi_send  <= 1'b1;
+        end else if (clk_i) begin
+            if (w_qpi_enable) begin
+                w_qpi_counter <= w_qpi_counter + 1;
+                if (w_qpi_counter == 9) begin
+                    w_qpi_enable <= 1'b0;
+                end
+            end
+        end
+    end
 
     always @* begin
         case(state)
@@ -161,12 +183,22 @@ module EF_PSRAM_CTRL_wb (
         .douten(mw_doe)
     );
 
-    assign sck  = wb_we ? mw_sck  : mr_sck;
-    assign ce_n = wb_we ? mw_ce_n : mr_ce_n;
-    assign dout = wb_we ? mw_dout : mr_dout;
-    assign douten  = wb_we ? {4{mw_doe}}  : {4{mr_doe}};
+    assign sck  =w_qpi_enable?~clk_i: wb_we ? mw_sck  : mr_sck;
+    assign ce_n =w_qpi_enable?1'b0: wb_we ? mw_ce_n : mr_ce_n;
+    // assign dout = wb_we ? mw_dout : mr_dout;
+    assign douten  =w_qpi_enable?4'b1111: wb_we ? {4{mw_doe}}  : {4{mr_doe}};
 
     assign mw_din = din;
     assign mr_din = din;
     assign ack_o = wb_we ? mw_done :mr_done ;
+
+    assign dout     =   (w_qpi_enable&& w_qpi_counter==0) ? {3'b0,1'b0}:
+                    (w_qpi_enable&& w_qpi_counter==1) ? {3'b0,1'b0}:
+                    (w_qpi_enable&& w_qpi_counter==2) ? {3'b0,1'b1}:
+                    (w_qpi_enable&& w_qpi_counter==3) ? {3'b0,1'b1}:
+                    (w_qpi_enable&& w_qpi_counter==4) ? {3'b0,1'b0}:
+                    (w_qpi_enable&& w_qpi_counter==5) ? {3'b0,1'b1}:
+                    (w_qpi_enable&& w_qpi_counter==6) ? {3'b0,1'b0}:
+                    (w_qpi_enable&& w_qpi_counter==7) ? {3'b0,1'b1}:
+                     wb_we ? mw_dout : mr_dout;
 endmodule

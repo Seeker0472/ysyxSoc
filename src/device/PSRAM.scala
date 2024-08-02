@@ -40,8 +40,10 @@ class psramChisel extends RawModule {
   // val is_QIR = io.dio === BitPat("b1011")
   // val is_QIW = io.dio === BitPat("b1000")
   //  val asyncReset = AsyncReset(io.ce_n)
+  val qpi_mode = withClockAndReset(io.sck.asClock, io.ce_n)(RegInit(false.B))
+
   withClockAndReset(io.sck.asClock, io.ce_n.asAsyncReset) {
-    val s_idle :: s_w_addr :: s_wr_data :: s_wait_read :: s_ra_data :: Nil = Enum(5)
+    val s_idle :: s_w_addr :: s_set_qpi :: s_wr_data :: s_wait_read :: s_ra_data :: Nil = Enum(6)
 
     val control_code = RegInit(0.U(8.W))
     // val data_count   = RegInit(0.U(3.W))
@@ -73,20 +75,29 @@ class psramChisel extends RawModule {
     // when((!io.ce_n).asBool) {
     //如果是s_wait_read/s_w_addr就应该mod
     data_count := Mux(
-      state === s_w_addr || state === s_wait_read,
+      qpi_mode && state === s_idle,
+      Mux(data_count === 1.U, 0.U, 1.U),
       Mux(
-        state === s_wait_read,
-        Mux(data_count === 6.U, 0.U, data_count + 1.U),
-        Mux(data_count === 5.U, 0.U, data_count + 1.U)
-      ),
-      data_count + 1.U
+        state === s_w_addr || state === s_wait_read,
+        Mux(
+          state === s_wait_read,
+          Mux(data_count === 6.U, 0.U, data_count + 1.U),
+          Mux(data_count === 5.U, 0.U, data_count + 1.U)
+        ),
+        data_count + 1.U
+      )
     )
     //状态机转换
     //TODO:手册上的tACLK是什么
     state := MuxLookup(state, s_idle)(
       List(
-        s_idle -> Mux(data_count === 7.U, s_w_addr, s_idle),
-        s_w_addr -> Mux(data_count === 5.U, Mux(control_code === 0xeb.U, s_wait_read, s_wr_data), s_w_addr),
+        s_idle -> Mux((data_count === 7.U && (~qpi_mode)) || (data_count === 1.U && qpi_mode), Mux(Cat(control_code(6, 0), di(0, 0)) === 0x35.U, s_set_qpi, s_w_addr), s_idle),
+        s_w_addr -> Mux(
+          data_count === 5.U,
+          Mux(control_code === 0xeb.U, s_wait_read, s_wr_data),
+          s_w_addr
+        ),
+        s_set_qpi -> s_set_qpi,
         s_wait_read -> Mux(data_count === 6.U, s_ra_data, s_wait_read),
         s_ra_data -> Mux(data_count =/= 7.U, s_ra_data, s_idle),
         s_wr_data -> Mux(data_count =/= 7.U, s_wr_data, s_idle)
@@ -94,7 +105,7 @@ class psramChisel extends RawModule {
     )
     out_en := state === s_ra_data
     when(state === s_idle) { //接收控制信号
-      control_code := Cat(control_code(6, 0), di(0, 0))
+      control_code := Mux(qpi_mode, Cat(control_code(3, 0), di(3, 0)), Cat(control_code(6, 0), di(0, 0)))
     }
     when(state === s_w_addr) { //接收地址
       addr := Cat(addr(27, 0), di)
@@ -110,6 +121,9 @@ class psramChisel extends RawModule {
     when(state === s_ra_data) { //读取数据
       //TODO:在这里更新
       data_buffer := Cat(data_buffer(27, 0), 0.U(4.W))
+    }
+    when(state === s_set_qpi) {
+      qpi_mode := true.B
     }
     dout := data_buffer(31, 28)
   }

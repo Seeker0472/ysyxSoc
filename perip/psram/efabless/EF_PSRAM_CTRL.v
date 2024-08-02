@@ -99,11 +99,13 @@ module PSRAM_READER (
 
     always @ (posedge clk or negedge rst_n)
         if(!rst_n)
-            counter <= 8'b0;
+            // counter <= 8'b0;
+            counter <= 8'b00000110;
         else if(sck & ~done)
             counter <= counter + 1'b1;
         else if(state == IDLE)
-            counter <= 8'b0;
+            // counter <= 8'b0;
+            counter <= 8'b00000110;
 
     always @ (posedge clk or negedge rst_n)
         if(!rst_n)
@@ -119,7 +121,9 @@ module PSRAM_READER (
             if(sck)
                 data[byte_index] <= {data[byte_index][3:0], din}; // Optimize!
 
-    assign dout     =   (counter < 8)   ?   {3'b0, CMD_EBH[7 - counter]}://TODO:!!!!!!!!!!!
+    // assign dout     =   (counter < 8)   ?   {3'b0, CMD_EBH[7 - counter]}:
+    assign dout     =   (counter == 6)   ?   {CMD_EBH[7:4]}:
+                        (counter == 7)   ?   {CMD_EBH[3:0]}:
                         (counter == 8)  ?   saddr[23:20]        :
                         (counter == 9)  ?   saddr[19:16]        :
                         (counter == 10) ?   saddr[15:12]        :
@@ -164,6 +168,7 @@ module PSRAM_WRITER (
     wire[7:0]        FINAL_COUNT = 13 + size*2;
 
     reg         state, nstate;
+
     reg [7:0]   counter;
     reg [23:0]  saddr;
     //reg [7:0]   data [3:0];
@@ -175,6 +180,7 @@ module PSRAM_WRITER (
             IDLE: if(wr) nstate = WRITE; else nstate = IDLE;
             WRITE: if(done) nstate = IDLE; else nstate = WRITE;
         endcase
+
 
     always @ (posedge clk or negedge rst_n)
         if(!rst_n) state <= IDLE;
@@ -200,11 +206,13 @@ module PSRAM_WRITER (
 
     always @ (posedge clk or negedge rst_n)
         if(!rst_n)
-            counter <= 8'b0;
+            counter <= 8'b00000110;
+            // counter <= 8'b0;
         else if(sck & ~done)
             counter <= counter + 1'b1;
         else if(state == IDLE)
-            counter <= 8'b0;
+            counter <= 8'b00000110;
+            // counter <= 8'b0;
 
     always @ (posedge clk or negedge rst_n)
         if(!rst_n)
@@ -212,7 +220,9 @@ module PSRAM_WRITER (
         else if((state == IDLE) && wr)
             saddr <= addr;
 
-    assign dout     =   (counter < 8)   ?   {3'b0, CMD_38H[7 - counter]}://TODO!!!!!!!!!!!
+    // assign dout     =   (counter < 8)   ?   {3'b0, CMD_38H[7 - counter]}:
+    assign dout     =   (counter == 6)   ?   {CMD_38H[7:4]}:
+                        (counter == 7)   ?   {CMD_38H[3:0]}:
                         (counter == 8)  ?   saddr[23:20]        :
                         (counter == 9)  ?   saddr[19:16]        :
                         (counter == 10) ?   saddr[15:12]        :
