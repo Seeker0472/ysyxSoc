@@ -127,7 +127,6 @@ class psramChisel extends RawModule {
     }
     dout := data_buffer(31, 28)
   }
-
 }
 class psram_read extends BlackBox with HasBlackBoxInline {
   val io = IO(new Bundle {

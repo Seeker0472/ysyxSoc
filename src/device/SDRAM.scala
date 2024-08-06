@@ -50,8 +50,8 @@ class sdramBlock extends BlackBox with HasBlackBoxInline {
   val io = IO(new Bundle {
     val clk = Input(Clock())
     val bank = Input(UInt(2.W))
-    val col = Input(UInt(13.W))
-    val row = Input(UInt(9.W))
+    val col = Input(UInt(9.W))
+    val row = Input(UInt(13.W))
     val data_in = Input(UInt(16.W))
     val we = Input(Bool())
     val data_out = Output(UInt(16.W))
@@ -62,8 +62,8 @@ class sdramBlock extends BlackBox with HasBlackBoxInline {
     |module sdramBlock(
     |    input wire clk,
     |    input wire [1:0] bank,
-    |    input wire [12:0] col,
-    |    input wire [8:0] row,
+    |    input wire [12:0] row,
+    |    input wire [8:0] col,
     |    input wire [15:0] data_in,
     |    input wire we,
     |    output reg [15:0] data_out,
@@ -74,51 +74,17 @@ class sdramBlock extends BlackBox with HasBlackBoxInline {
     |    always @(posedge clk) begin
     |           if(we) begin
     |            if (dqm[0] == 0) begin
-    |                regFile[bank][col][row][7:0] <= data_in[7:0];
+    |                regFile[bank][row][col][7:0] <= data_in[7:0];
     |            end
     |            if (dqm[1] == 0) begin
-    |                regFile[bank][col][row][15:8] <= data_in[15:8];
+    |                regFile[bank][row][col][15:8] <= data_in[15:8];
     |            end
     |          end
-    |        data_out <= regFile[bank][col][row];
+    |        data_out <= regFile[bank][row][col];
     |    end
     |endmodule
     """.stripMargin)
 }
-// class sdramBlock extends BlackBox with HasBlackBoxInline {
-//   val io = IO(new Bundle {
-//     val clk = Input(Clock())
-//     val bank = Input(UInt(2.W))
-//     val col = Input(UInt(13.W))
-//     val row = Input(UInt(9.W))
-//     val data_in = Input(UInt(16.W))
-//     val we = Input(Bool())
-//     val data_out = Output(UInt(16.W))
-//     val dqm=Input(UInt(2.W))
-//   })
-//   setInline("sdramBlock.v",
-//     """
-//     |module sdramBlock(
-//     |    input wire clk,
-//     |    input wire [1:0] bank,
-//     |    input wire [12:0] col,
-//     |    input wire [8:0] row,
-//     |    input wire [15:0] data_in,
-//     |    input wire we,
-//     |    output reg [15:0] data_out,
-//     |    input wire [1:0] dqm
-//     |);
-//     |    reg [15:0] regFile [0:3][0:8191][0:511];
-//     |
-//     |    always @(posedge clk) begin
-//     |           if(we) begin
-//     |              regFile[bank][col][row] <= data_in;
-//     |          end
-//     |        data_out <= regFile[bank][col][row];
-//     |    end
-//     |endmodule
-//     """.stripMargin)
-// }
 
 class sdramChisel extends RawModule {
   val io = IO(Flipped(new SDRAMIO))
@@ -139,14 +105,14 @@ class sdramChisel extends RawModule {
     val counter = Reg(UInt(3.W))
     val data = Reg(UInt(16.W))
     //好像DRAM控制器只会发送CAS延迟为2,burstL=2的请求
-    val row = Reg(UInt(13.W))
+    val row = Reg(Vec(4,UInt(13.W)))
     val col = Reg(UInt(13.W))
     val bankid = Reg(UInt(2.W))
     val control_code = Reg(UInt(13.W))
 
     mem.io.bank:=bankid
-    mem.io.row:=col(8,0)
-    mem.io.col:=row
+    mem.io.col:=col(8,0)
+    mem.io.row:=row(bankid)
     // mem.io.data_in:=dq
     data:=dq
     mem.io.data_in:=data
@@ -166,8 +132,9 @@ class sdramChisel extends RawModule {
       control_code :=io.a
     }
     when(state===s_idle&&sig_active){
-      row:=io.a
+      row(io.ba):=io.a
       counter:=0.U
+      bankid:=io.ba
     }
     when(state===s_idle&&(sig_read||sig_write)){
       col:=io.a

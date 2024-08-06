@@ -558,6 +558,7 @@ begin
         bank_q        <= addr_bank_w;
 
         active_row_q[addr_bank_w]  <= addr_row_w;
+        // row_open_q <= {SDRAM_BANKS{1'b0}};//TODO
         row_open_q[addr_bank_w]    <= 1'b1;
     end
     //-----------------------------------------
