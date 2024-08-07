@@ -94,8 +94,12 @@ class sdramChisel extends RawModule {
   val dq = TriStateInBuf(io.dq, dout, out_en) // io
   val mem1 = Module(new sdramBlock())
   val mem2 = Module(new sdramBlock())
+  val mem11 = Module(new sdramBlock())
+  val mem12 = Module(new sdramBlock())
     mem1.io.clk:=io.clk.asClock
     mem2.io.clk:=io.clk.asClock
+    mem11.io.clk:=io.clk.asClock
+    mem12.io.clk:=io.clk.asClock
   val s_idle :: s_read :: s_write :: Nil = Enum(3)
 //TODO:cke as enable
   val sig_active = (!io.cs)&&(!io.ras)&&io.cas&&io.we
@@ -118,19 +122,30 @@ class sdramChisel extends RawModule {
     mem2.io.col:=col(8,0)
     mem1.io.row:=row(bankid)
     mem2.io.row:=row(bankid)
+    mem11.io.bank:=bankid
+    mem12.io.bank:=bankid
+    mem11.io.col:=col(8,0)
+    mem12.io.col:=col(8,0)
+    mem11.io.row:=row(bankid)
+    mem12.io.row:=row(bankid)
     // mem.io.data_in:=dq
     data:=dq
     mem1.io.data_in:=data(31,16)
     mem2.io.data_in:=data(15,0)
+    mem11.io.data_in:=data(31,16)
+    mem12.io.data_in:=data(15,0)
     val demdelay=Reg(UInt(4.W))
     demdelay:=io.dqm
     mem1.io.dqm:=demdelay(3,2)
     mem2.io.dqm:=demdelay(1,0)
-    dout:=Cat(mem1.io.data_out,mem2.io.data_out)
+    mem11.io.dqm:=demdelay(3,2)
+    mem12.io.dqm:=demdelay(1,0)
+    dout:=Mux(col(9,9)===1.U,Cat(mem11.io.data_out,mem12.io.data_out),Cat(mem1.io.data_out,mem2.io.data_out))//DONE:MUX
     out_en:=state===s_read
-    mem1.io.we:=state===s_write
-    mem2.io.we:=state===s_write
-
+    mem1.io.we:=Mux(col(9,9)===0.U,state===s_write,false.B)//TODO:MUX
+    mem2.io.we:=Mux(col(9,9)===0.U,state===s_write,false.B)
+    mem11.io.we:=Mux(col(9,9)===0.U,state===s_write,false.B)//TODO:MUX
+    mem12.io.we:=Mux(col(9,9)===1.U,state===s_write,false.B)
     state := MuxLookup(state,s_idle)(List(
       s_idle -> Mux(sig_read,s_read,Mux(sig_write,s_write,s_idle)),
       s_read -> Mux(counter===1.U,s_idle,s_read),//延迟一个周期返回
