@@ -20,8 +20,8 @@ class SDRAMIO extends Bundle {
   val we  = Output(Bool())//
   val a   = Output(UInt(13.W))//Address Input
   val ba  = Output(UInt(2.W))//Bank Address Input
-  val dqm = Output(UInt(2.W))//Input/Output Mask
-  val dq  = Analog(16.W)//Data Input/Outp
+  val dqm = Output(UInt(4.W))//Input/Output Mask
+  val dq  = Analog(32.W)//Data Input/Outp
 }
 
 class sdram_top_axi extends BlackBox {
@@ -88,12 +88,14 @@ class sdramBlock extends BlackBox with HasBlackBoxInline {
 
 class sdramChisel extends RawModule {
   val io = IO(Flipped(new SDRAMIO))
-  val dout = Wire(UInt(16.W))
+  val dout = Wire(UInt(32.W))
   val out_en = Wire(Bool())
   out_en:=false.B
   val dq = TriStateInBuf(io.dq, dout, out_en) // io
-  val mem = Module(new sdramBlock())
-    mem.io.clk:=io.clk.asClock
+  val mem1 = Module(new sdramBlock())
+  val mem2 = Module(new sdramBlock())
+    mem1.io.clk:=io.clk.asClock
+    mem2.io.clk:=io.clk.asClock
   val s_idle :: s_read :: s_write :: Nil = Enum(3)
 //TODO:cke as enable
   val sig_active = (!io.cs)&&(!io.ras)&&io.cas&&io.we
@@ -103,30 +105,36 @@ class sdramChisel extends RawModule {
   withClockAndReset(io.clk.asClock,false.B){
     val state = RegInit(s_idle)
     val counter = Reg(UInt(3.W))
-    val data = Reg(UInt(16.W))
+    val data = Reg(UInt(32.W))
     //好像DRAM控制器只会发送CAS延迟为2,burstL=2的请求
     val row = Reg(Vec(4,UInt(13.W)))
     val col = Reg(UInt(13.W))
     val bankid = Reg(UInt(2.W))
     val control_code = Reg(UInt(13.W))
 
-    mem.io.bank:=bankid
-    mem.io.col:=col(8,0)
-    mem.io.row:=row(bankid)
+    mem1.io.bank:=bankid
+    mem2.io.bank:=bankid
+    mem1.io.col:=col(8,0)
+    mem2.io.col:=col(8,0)
+    mem1.io.row:=row(bankid)
+    mem2.io.row:=row(bankid)
     // mem.io.data_in:=dq
     data:=dq
-    mem.io.data_in:=data
-    val demdelay=Reg(UInt(2.W))
+    mem1.io.data_in:=data(31,16)
+    mem2.io.data_in:=data(15,0)
+    val demdelay=Reg(UInt(4.W))
     demdelay:=io.dqm
-    mem.io.dqm:=demdelay
-    dout:=mem.io.data_out
+    mem1.io.dqm:=demdelay(3,2)
+    mem2.io.dqm:=demdelay(1,0)
+    dout:=Cat(mem1.io.data_out,mem2.io.data_out)
     out_en:=state===s_read
-    // mem.io.we:=state===s_write&&((counter===0.U&&dq(0,0)===0.U)||(counter===1.U&&dq(1,1)===0.U))
-    mem.io.we:=state===s_write&&(counter===0.U||counter===1.U)
+    mem1.io.we:=state===s_write
+    mem2.io.we:=state===s_write
+
     state := MuxLookup(state,s_idle)(List(
       s_idle -> Mux(sig_read,s_read,Mux(sig_write,s_write,s_idle)),
-      s_read -> Mux(counter===4.U,s_idle,s_read),
-      s_write -> Mux(counter===2    .U,s_idle,s_write),
+      s_read -> Mux(counter===1.U,s_idle,s_read),//延迟一个周期返回
+      s_write -> s_idle
     ))
     when(state===s_idle&&sig_write_mode){
       control_code :=io.a
@@ -144,11 +152,74 @@ class sdramChisel extends RawModule {
     when(state===s_read||state===s_write){
       counter := counter+1.U
     }
-    when((state===s_read&&counter===0.U)||(state===s_write)){
-      col:=col+1.U
-    }
+    // when((state===s_read&&counter===0.U)||(state===s_write)){
+    //   col:=col+1.U
+    // }
   }
 }
+// class sdramChisel extends RawModule {
+//   val io = IO(Flipped(new SDRAMIO))
+//   val dout = Wire(UInt(16.W))
+//   val out_en = Wire(Bool())
+//   out_en:=false.B
+//   val dq = TriStateInBuf(io.dq, dout, out_en) // io
+//   val mem = Module(new sdramBlock())
+//     mem.io.clk:=io.clk.asClock
+//   val s_idle :: s_read :: s_write :: Nil = Enum(3)
+// //TODO:cke as enable
+//   val sig_active = (!io.cs)&&(!io.ras)&&io.cas&&io.we
+//   val sig_read = (!io.cs)&&io.ras&&(!io.cas)&&io.we
+//   val sig_write = (!io.cs)&&io.ras&&(!io.cas)&&(!io.we)
+//   val sig_write_mode = (!io.cs)&&(!io.ras)&&(!io.cas)&&(!io.we)
+//   withClockAndReset(io.clk.asClock,false.B){
+//     val state = RegInit(s_idle)
+//     val counter = Reg(UInt(3.W))
+//     val data = Reg(UInt(16.W))
+//     //好像DRAM控制器只会发送CAS延迟为2,burstL=2的请求
+//     val row = Reg(Vec(4,UInt(13.W)))
+//     val col = Reg(UInt(13.W))
+//     val bankid = Reg(UInt(2.W))
+//     val control_code = Reg(UInt(13.W))
+
+//     mem.io.bank:=bankid
+//     mem.io.col:=col(8,0)
+//     mem.io.row:=row(bankid)
+//     // mem.io.data_in:=dq
+//     data:=dq
+//     mem.io.data_in:=data
+//     val demdelay=Reg(UInt(2.W))
+//     demdelay:=io.dqm
+//     mem.io.dqm:=demdelay
+//     dout:=mem.io.data_out
+//     out_en:=state===s_read
+//     // mem.io.we:=state===s_write&&((counter===0.U&&dq(0,0)===0.U)||(counter===1.U&&dq(1,1)===0.U))
+//     mem.io.we:=state===s_write&&(counter===0.U||counter===1.U)
+//     state := MuxLookup(state,s_idle)(List(
+//       s_idle -> Mux(sig_read,s_read,Mux(sig_write,s_write,s_idle)),
+//       s_read -> Mux(counter===4.U,s_idle,s_read),
+//       s_write -> Mux(counter===2    .U,s_idle,s_write),
+//     ))
+//     when(state===s_idle&&sig_write_mode){
+//       control_code :=io.a
+//     }
+//     when(state===s_idle&&sig_active){
+//       row(io.ba):=io.a
+//       counter:=0.U
+//       bankid:=io.ba
+//     }
+//     when(state===s_idle&&(sig_read||sig_write)){
+//       col:=io.a
+//       counter:=0.U
+//       bankid:=io.ba
+//     }
+//     when(state===s_read||state===s_write){
+//       counter := counter+1.U
+//     }
+//     when((state===s_read&&counter===0.U)||(state===s_write)){
+//       col:=col+1.U
+//     }
+//   }
+// }
 
 
 class AXI4SDRAM(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
