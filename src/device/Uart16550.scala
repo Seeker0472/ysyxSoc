@@ -20,7 +20,7 @@ class uart_top_apb extends BlackBox {
     val in = Flipped(new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32)))
     val uart = new UARTIO
   })
-}
+} 
 
 class APBUart16550(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
   val node = APBSlaveNode(Seq(APBSlavePortParameters(
