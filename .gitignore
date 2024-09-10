@@ -1,2 +1,6 @@
 build/
 out/
+.bloop/
+.metals/
+.vscode/
+ysyxSoC.iml
