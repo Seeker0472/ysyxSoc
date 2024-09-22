@@ -37,6 +37,7 @@ class SourceD(info: ChipLinkInfo) extends Module
     Mux(enable, data, RegEnable(data, enable))
   }
 
+  //这里的抽取可以参考Parameters.scala
   // Extract header fields from the message
   val Seq(_, q_opcode, q_param, q_size, q_domain, q_source) =
     info.decode(io.q.bits).map(hold(s_header) _)
@@ -66,6 +67,23 @@ class SourceD(info: ChipLinkInfo) extends Module
   io.d.bits.opcode  := q_opcode
   io.d.bits.param   := q_param(1,0)
   io.d.bits.size    := q_size
+  //TDDO:有空再解决
+  // 额，这似乎是sifive的开源代码，https://github.com/sifive/sifive-blocks/blob/master/src/main/scala/devices/chiplink/Parameters.scala
+  //明天做一下diff
+  //目前我approach：
+  //muxes打印出来的结果是List(SourceD.muxes_0: Wire[UInt<1>[1]], SourceD.muxes_1: Wire[UInt<3>[8]],
+  // SourceD.muxes_2: Wire[UInt<4>[8]], SourceD.muxes_3: Wire[UInt<1>[1]], SourceD.muxes_4: Wire[UInt<1>[1]],
+  // SourceD.muxes_5: Wire[UInt<1>[1]], SourceD.muxes_6: Wire[UInt<1>[1]], SourceD.muxes_7: Wire[UInt<1>[1]])
+
+  //而VecInit(muxes.map { m => m(0) }) 打印出来的结果是 SourceD_1.?: Wire[UInt<4>[8]]
+  
+  //猜想：要在哪个地方补齐，让所有 Source 都为 Wire[UInt<4>[8]]
+
+  //可能要修改info.mux() --- 在
+
+  //VecInit(muxes.map { m => m(narrow_q_source) }) 应该是一个包含8个4位宽的list,q_domain有3位正好选其中一个
+
+  
   io.d.bits.source  := VecInit(muxes.map { m => m(q_source) })(q_domain)
   io.d.bits.sink    := Mux(q_grant, sink, 0.U)
   io.d.bits.denied  := q_param >> 2
