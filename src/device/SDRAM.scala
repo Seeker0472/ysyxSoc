@@ -159,8 +159,8 @@ class sdramChisel extends RawModule {
 //enable output of tri_state_buf
     out_en      := state === s_read
     mem1.io.we  := Mux(col(9, 9) === 0.U, state === s_write, false.B)
-    mem11.io.we := Mux(col(9, 9) === 0.U, state === s_write, false.B) 
-    mem2.io.we  := Mux(col(9, 9) === 1.U, state === s_write, false.B)//TODO:OKEY?in MUX
+    mem11.io.we := Mux(col(9, 9) === 1.U, state === s_write, false.B) 
+    mem2.io.we  := Mux(col(9, 9) === 0.U, state === s_write, false.B)//TODO:OKEY?in MUX
     mem12.io.we := Mux(col(9, 9) === 1.U, state === s_write, false.B)
     state := MuxLookup(state, s_idle)(
       List(
