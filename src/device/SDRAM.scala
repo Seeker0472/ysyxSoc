@@ -87,7 +87,7 @@ class sdramBlock extends BlackBox with HasBlackBoxInline {
     """.stripMargin
   )
 }
-//TODO:实现的有问题
+
 class sdramChisel extends RawModule {
   val io     = IO(Flipped(new SDRAMIO))
   val dout   = Wire(UInt(32.W))
@@ -106,7 +106,6 @@ class sdramChisel extends RawModule {
   mem12.io.clk := io.clk.asClock
 
   val s_idle :: s_read :: s_write :: Nil = Enum(3)
-//TODO:cke as enable
 //decode sigs
   val sig_active     = (!io.cs) && (!io.ras) && io.cas && io.we
   val sig_read       = (!io.cs) && io.ras && (!io.cas) && io.we
@@ -159,8 +158,8 @@ class sdramChisel extends RawModule {
 //enable output of tri_state_buf
     out_en      := state === s_read
     mem1.io.we  := Mux(col(9, 9) === 0.U, state === s_write, false.B)
-    mem11.io.we := Mux(col(9, 9) === 1.U, state === s_write, false.B) 
-    mem2.io.we  := Mux(col(9, 9) === 0.U, state === s_write, false.B)//TODO:OKEY?in MUX
+    mem11.io.we := Mux(col(9, 9) === 1.U, state === s_write, false.B)
+    mem2.io.we  := Mux(col(9, 9) === 0.U, state === s_write, false.B)
     mem12.io.we := Mux(col(9, 9) === 1.U, state === s_write, false.B)
     state := MuxLookup(state, s_idle)(
       List(
