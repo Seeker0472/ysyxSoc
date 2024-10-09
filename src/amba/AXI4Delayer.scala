@@ -31,7 +31,7 @@ class AXI4DelayerChisel extends Module {
     - ready
     - bits - AXI4BundleX
    */
-  val FREQ  = 625.U
+  val FREQ  = (DelayerParams.FREQ).U
   val SCALE = 100.U
 
   //max items in queue

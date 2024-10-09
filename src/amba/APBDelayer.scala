@@ -28,7 +28,7 @@ class APBDelayerChisel extends Module {
   /*
     设备运行在100MHz,NPC暂时运行在400MHz,每次时间延迟要*4
    */
-  val FREQ                                              = 625.U
+  val FREQ                                              = (DelayerParams.FREQ).U
   val scale                                             = 100.U
   val timer                                             = RegInit(0.U(64.W))
   val count                                             = RegInit(0.U(64.W))
