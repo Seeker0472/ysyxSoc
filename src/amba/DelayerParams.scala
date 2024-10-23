@@ -1,4 +1,4 @@
 package ysyx
 object DelayerParams{
-    val FREQ=626
+    val FREQ=723
 }
